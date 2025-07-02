@@ -1,4 +1,3 @@
-#include "MapRenderer.h"
 #include <vector>
 #include <algorithm>
 #include <glad/glad.h>
@@ -8,6 +7,12 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <cmath>
+
+#include "Tile.h"
+#include "Underlay.h"
+#include "MapRenderer.h"
+
+Tile loadedTiles[TILE_Z][TILE_X][TILE_Y];
 
 struct Vertex {
 	float x, y, z;
@@ -26,6 +31,7 @@ extern GLuint vao;
 float yaw = -90.0f;
 float pitch = -70.0f;
 float distance = 180.0f;
+
 float lastX = 400, lastY = 300;
 bool firstMouse = true;
 bool rotating = false;
@@ -33,7 +39,6 @@ bool panning = false;
 
 glm::vec3 target = glm::vec3(31.0f, 0.0f, 31.0f);
 glm::vec3 cameraPos;
-glm::ivec2 highlightedTile = { -1, -1 };
 
 void setYaw(float y) { yaw = y; }
 void setPitch(float p) { pitch = std::clamp(p, -90.0f, 90.0f); }
@@ -49,28 +54,29 @@ void resetCamera()
 void createShader() {
 	const char* vertSrc = R"(
         #version 330 core
-        layout (location = 0) in vec3 aPos;
-        layout (location = 1) in vec3 aColor;
+		layout (location = 0) in vec3 aPos;
+		layout (location = 1) in vec3 aColor;
 
-        uniform mat4 uVP;
-        uniform vec4 uColor;
+		uniform mat4 uVP;
 
-        out vec3 vColor;
+		out vec3 vColor;
 
-        void main() {
-            gl_Position = uVP * vec4(aPos, 1.0);
-            vColor = (aColor == vec3(0.0)) ? uColor.rgb : aColor;
-        }
+		void main() 
+		{
+			gl_Position = uVP * vec4(aPos, 1.0);
+			vColor = aColor;
+		}
     )";
 
 	const char* fragSrc = R"(
         #version 330 core
-        in vec3 vColor;
-        out vec4 FragColor;
+		in vec3 vColor;
+		out vec4 FragColor;
 
-        void main() {
-            FragColor = vec4(vColor, 1.0);
-        }
+		void main() 
+		{
+			FragColor = vec4(vColor, 1.0);
+		}
     )";
 
 	GLuint vert = glCreateShader(GL_VERTEX_SHADER);
@@ -89,6 +95,7 @@ void createShader() {
 	glDeleteShader(vert);
 	glDeleteShader(frag);
 }
+
 
 
 void initMap() 
@@ -140,83 +147,143 @@ void initMap()
 	glEnableVertexAttribArray(1);
 }
 
-	void renderMap() 
+void InitRS2Map(Tile tiles[TILE_Z][TILE_X][TILE_Y])
+{
+	std::vector<Vertex> verts;
+	float tileSize = 4.0f;
+	float heightScale = 0.125f;
+
+	for (int y = 0; y < TILE_Y; ++y)
 	{
-		glUseProgram(shaderProgram);
-
-		int width, height;
-		glfwGetFramebufferSize(glfwGetCurrentContext(), &width, &height);
-		float aspect = width / (float)height;
-
-		glm::mat4 projection = glm::perspective(glm::radians(50.0f), aspect, 0.1f, 500.0f);
-
-		// reasonable view
-		setYaw(-90.f);
-		setPitch(34.0f);
-
-		float yawRad = glm::radians(yaw);
-		float pitchRad = glm::radians(pitch);
-
-		cameraPos = target + glm::vec3(
-			distance * cos(pitchRad) * cos(yawRad),
-			distance * sin(pitchRad),
-			distance * cos(pitchRad) * sin(yawRad)
-		);
-
-		glm::mat4 view = glm::lookAt(cameraPos, target, glm::vec3(0, 1, 0));
-		glm::mat4 vp = projection * view;
-
-		GLuint loc = glGetUniformLocation(shaderProgram, "uVP");
-		glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(vp));
-
-		glBindVertexArray(vao);
-		glDrawArrays(GL_TRIANGLES, 0, MAP_WIDTH * MAP_HEIGHT * 6);
-
-
-
-		if (highlightedTile.x != -1)
+		for (int x = 0; x < TILE_X; ++x)
 		{
-			float tileSize = 4.0f;
+			Tile& tile = tiles[0][x][y];
+			float height = tile.height * heightScale;
 
-			float x = highlightedTile.x * tileSize;
-			float z = highlightedTile.y * tileSize;
-			float y = 0.05f;
-
-			float left = -1.0f + highlightedTile.x * tileSize;
+			float left = x * tileSize;
 			float right = left + tileSize;
-			float top = 1.0f - highlightedTile.y * tileSize;
-			float bottom = top - tileSize;
+			float top = y * tileSize;
+			float bottom = top + tileSize;
 
-			float highlightVerts[] = {
-				left, y, -top,
-				right, y, -top,
-				right, y, -bottom,
-				left, y, -top,
-				right, y, -bottom,
-				left, y, -bottom
-			};
+			glm::vec3 color = getUnderlayRGB(tile.underlayId);
+			float r = color.r, g = color.g, b = color.b;
 
-			GLuint highlightVBO, highlightVAO;
-			glGenVertexArrays(1, &highlightVAO);
-			glGenBuffers(1, &highlightVBO);
+			verts.push_back({ left, height, -top, r, g, b });
+			verts.push_back({ right, height, -top, r, g, b });
+			verts.push_back({ right, height, -bottom, r, g, b });
 
-			glBindVertexArray(highlightVAO);
-			glBindBuffer(GL_ARRAY_BUFFER, highlightVBO);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(highlightVerts), highlightVerts, GL_STATIC_DRAW);
+			verts.push_back({ left, height, -top, r, g, b });
+			verts.push_back({ right, height, -bottom, r, g, b });
+			verts.push_back({ left, height, -bottom, r, g, b });
 
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-			glEnableVertexAttribArray(0);
+			// skirting for now
+			if (x < TILE_X - 1)
+			{
+				Tile& nbr = tiles[0][x + 1][y];
+				float nh = nbr.height * heightScale;
 
-			glDisableVertexAttribArray(1); // no color
-			glUniform4f(glGetUniformLocation(shaderProgram, "uColor"), 1.0f, 1.0f, 0.0f, 1.0f);
+				if (nh != height)
+				{
+					float minH = std::min(height, nh);
+					float maxH = std::max(height, nh);
 
-			glDrawArrays(GL_TRIANGLES, 0, 6);
+					// Vertical quad between tiles along right edge
+					verts.push_back({ right, minH, -top, r, g, b });
+					verts.push_back({ right, maxH, -top, r, g, b });
+					verts.push_back({ right, maxH, -bottom, r, g, b });
 
-			glDeleteVertexArrays(1, &highlightVAO);
-			glDeleteBuffers(1, &highlightVBO);
+					verts.push_back({ right, minH, -top, r, g, b });
+					verts.push_back({ right, maxH, -bottom, r, g, b });
+					verts.push_back({ right, minH, -bottom, r, g, b });
+				}
+			}
+
+			if (y < TILE_Y - 1)
+			{
+				Tile& nbr = tiles[0][x][y + 1];
+				float nh = nbr.height * heightScale;
+
+				if (nh != height)
+				{
+					float minH = std::min(height, nh);
+					float maxH = std::max(height, nh);
+
+					verts.push_back({ left, minH, -bottom, r, g, b });
+					verts.push_back({ left, maxH, -bottom, r, g, b });
+					verts.push_back({ right, maxH, -bottom, r, g, b });
+
+					verts.push_back({ left, minH, -bottom, r, g, b });
+					verts.push_back({ right, maxH, -bottom, r, g, b });
+					verts.push_back({ right, minH, -bottom, r, g, b });
+				}
+			}
 		}
-
 	}
+
+	if (vao) glDeleteVertexArrays(1, &vao);
+	if (vbo) glDeleteBuffers(1, &vbo);
+
+	createShader();
+
+	glGenVertexArrays(1, &vao);
+	glGenBuffers(1, &vbo);
+
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(Vertex), verts.data(), GL_STATIC_DRAW);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+}
+
+
+void renderMap()
+{
+	glUseProgram(shaderProgram);
+
+	int width, height;
+	glfwGetFramebufferSize(glfwGetCurrentContext(), &width, &height);
+	float aspect = width / (float)height;
+
+	glm::mat4 projection = glm::perspective(glm::radians(50.0f), aspect, 0.1f, 500.0f);
+
+	setYaw(90.f);
+	setPitch(34.0f);
+
+	float yawRad = glm::radians(yaw);
+	float pitchRad = glm::radians(pitch);
+
+	cameraPos = target + glm::vec3(
+		distance * cos(pitchRad) * cos(yawRad),
+		distance * sin(pitchRad),
+		distance * cos(pitchRad) * sin(yawRad)
+	);
+
+	glm::mat4 view = glm::lookAt(cameraPos, target, glm::vec3(0, 1, 0));
+	glm::mat4 vp = projection * view;
+
+	GLuint loc = glGetUniformLocation(shaderProgram, "uVP");
+	glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(vp));
+
+	glBindVertexArray(vao);
+
+	for (int y = 0; y < TILE_Y; ++y)
+	{
+		for (int x = 0; x < TILE_X; ++x)
+		{
+			Tile& tile = loadedTiles[0][x][y]; // plane 0
+
+			glm::vec3 color = getUnderlayRGB(tile.underlayId);
+
+			glUniform3f(glGetUniformLocation(shaderProgram, "uColor"), color.r, color.g, color.b);
+			glDrawArrays(GL_TRIANGLES, (x + y * TILE_X) * 6, 6);
+		}
+	}
+}
+
 
 	void cleanupMap() 
 	{
@@ -282,49 +349,4 @@ void initMap()
 		setDistance(distance);
 	}
 
-	void updateHighlight(GLFWwindow* window)
-	{
-		int width, height;
-		glfwGetFramebufferSize(window, &width, &height);
-
-		double xpos, ypos;
-		glfwGetCursorPos(window, &xpos, &ypos);
-
-		float ndcX = (2.0f * xpos) / width - 1.0f;
-		float ndcY = 1.0f - (2.0f * ypos) / height;
-
-		glm::mat4 projection = glm::perspective(glm::radians(50.0f), (float)width / height, 0.1f, 500.0f);
-		glm::mat4 view = glm::lookAt(cameraPos, target, glm::vec3(0, 1, 0));
-		glm::mat4 invVP = glm::inverse(projection * view);
-
-		glm::vec4 rayStartNDC = glm::vec4(ndcX, ndcY, -1.0f, 1.0f);
-		glm::vec4 rayEndNDC = glm::vec4(ndcX, ndcY, 1.0f, 1.0f); // not 0.0f
-
-		glm::vec4 rayStartWorld = invVP * rayStartNDC;
-		rayStartWorld /= rayStartWorld.w;
-
-		glm::vec4 rayEndWorld = invVP * rayEndNDC;
-		rayEndWorld /= rayEndWorld.w;
-
-		glm::vec3 origin = glm::vec3(rayStartWorld);
-		glm::vec3 rayDir = glm::normalize(glm::vec3(rayEndWorld - rayStartWorld));
-
-		if (rayDir.y >= 0.0f)
-		{
-			highlightedTile = { -1, -1 };
-			return;
-		}
-
-		float t = -origin.y / rayDir.y;
-		glm::vec3 intersect = origin + rayDir * t;
-
-		float tileSize = 4.0f;
-		int tileX = static_cast<int>(intersect.x / tileSize);
-		int tileZ = static_cast<int>(intersect.z / tileSize); // remove the minus!
-
-		if (tileX >= 0 && tileX < MAP_WIDTH && tileZ >= 0 && tileZ < MAP_HEIGHT)
-			highlightedTile = { tileX, tileZ };
-		else
-			highlightedTile = { -1, -1 };
-	}
 

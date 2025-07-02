@@ -2,14 +2,20 @@
 #include <iostream>
 #include <windows.h>
 #include "pch.h"
+
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/vec3.hpp>        
 #include <glm/gtc/type_ptr.hpp>
+
+#include "Tile.h"
+#include "MapLoader.h"
 #include "MapRenderer.h"
+#include "Utils.h"
 
 void hideConsole();
 void drawUI();
@@ -22,7 +28,6 @@ extern float pitch;
 extern float distance;
 extern glm::vec3 target;
 extern glm::vec3 cameraPos;
-extern glm::ivec2 highlightedTile;
 
 static bool showWireframe = true;
 
@@ -55,7 +60,21 @@ int main() {
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	glfwSetScrollCallback(window, scroll_callback);
 
-	initMap();
+
+	Tile tiles[TILE_Z][TILE_X][TILE_Y] = {};
+	size_t bufSize;
+	unsigned char* buf = loadFileBytes("m50_50.dat", &bufSize);
+	if (buf)
+	{
+		loadTerrain(tiles, buf, bufSize);
+		free(buf);
+	}
+	else
+	{
+		std::cerr << "Failed to load map data\n";
+	}
+
+	InitRS2Map(tiles);
 
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -68,7 +87,6 @@ int main() {
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		
-		updateHighlight(window);
 		renderMap();
 
 		ImGui_ImplOpenGL3_NewFrame();
@@ -121,9 +139,6 @@ void drawUI() {
 
 	if (ImGui::SliderFloat("Distance", &distance, 60.0f, 300.0f, "%.0f"))
 		distance = roundf(distance);
-
-	ImGui::Text("Tile: %d, %d", highlightedTile.x, highlightedTile.y);
-
 
 	ImGui::End();
 }
