@@ -93,60 +93,58 @@ void MapRenderer::createShader() {
 void MapRenderer::uploadTileMesh(Tile*** tiles) {
 	std::vector<Vertex> verts;
 	float tileSize = 4.0f;
-	float heightScale = 0.200f;
+	float heightScale = 0.300f;
+
+	float cornerHeights[65][65] = {};
+
+	for (int y = 0; y <= 64; ++y) {
+		for (int x = 0; x <= 64; ++x) {
+			float sum = 0.f;
+			int count = 0;
+			for (int dy = -1; dy <= 1; ++dy) {
+				for (int dx = -1; dx <= 1; ++dx) {
+					int tx = x + dx;
+					int ty = y + dy;
+					if (tx >= 0 && tx < 64 && ty >= 0 && ty < 64) {
+						sum += tiles[0][tx][ty].height;
+						count++;
+					}
+				}
+			}
+			cornerHeights[x][y] = (count > 0 ? sum / count : 0.f) * heightScale;
+		}
+	}
 
 	for (int y = 0; y < 64; ++y) {
 		for (int x = 0; x < 64; ++x) {
 			Tile& tile = tiles[0][x][y];
-			float height = tile.height * heightScale;
-			float left = x * tileSize;
-			float right = left + tileSize;
-			float top = (MAP_HEIGHT - 1 - y) * tileSize;
-			float bottom = top + tileSize;
 			glm::vec3 color;
-			if (tile.overlayId != 0) {
+			if (tile.overlayId != 0)
 				color = getOverlayRGB(tile.overlayId);
-			}
-			else {
+			else
 				color = getUnderlayRGB(tile.underlayId);
-			}
 			float r = color.r, g = color.g, b = color.b;
-			verts.push_back({ left, height, top, r, g, b });
-			verts.push_back({ right, height, top, r, g, b });
-			verts.push_back({ right, height, bottom, r, g, b });
-			verts.push_back({ left, height, top, r, g, b });
-			verts.push_back({ right, height, bottom, r, g, b });
-			verts.push_back({ left, height, bottom, r, g, b });
-			if (x < 63) {
-				Tile& nbr = tiles[0][x + 1][y];
-				float nh = nbr.height * heightScale;
-				if (nh != height) {
-					float minH = std::min(height, nh);
-					float maxH = std::max(height, nh);
-					verts.push_back({ right, minH, top, r, g, b });
-					verts.push_back({ right, maxH, top, r, g, b });
-					verts.push_back({ right, maxH, bottom, r, g, b });
-					verts.push_back({ right, minH, top, r, g, b });
-					verts.push_back({ right, maxH, bottom, r, g, b });
-					verts.push_back({ right, minH, bottom, r, g, b });
-				}
-			}
-			if (y < 63) {
-				Tile& nbr = tiles[0][x][y + 1];
-				float nh = nbr.height * heightScale;
-				if (nh != height) {
-					float minH = std::min(height, nh);
-					float maxH = std::max(height, nh);
-					verts.push_back({ left, minH, bottom, r, g, b });
-					verts.push_back({ left, maxH, bottom, r, g, b });
-					verts.push_back({ right, maxH, bottom, r, g, b });
-					verts.push_back({ left, minH, bottom, r, g, b });
-					verts.push_back({ right, maxH, bottom, r, g, b });
-					verts.push_back({ right, minH, bottom, r, g, b });
-				}
-			}
+
+			float h00 = cornerHeights[x][y];
+			float h10 = cornerHeights[x + 1][y];
+			float h11 = cornerHeights[x + 1][y + 1];
+			float h01 = cornerHeights[x][y + 1];
+
+			float left = x * tileSize;
+			float right = (x + 1) * tileSize;
+			float top = (MAP_HEIGHT - 1 - y) * tileSize;
+			float bottom = (MAP_HEIGHT - 1 - (y + 1)) * tileSize;
+
+			verts.push_back({ left,  h00, top,    r, g, b });
+			verts.push_back({ right, h10, top,    r, g, b });
+			verts.push_back({ right, h11, bottom, r, g, b });
+
+			verts.push_back({ left,  h00, top,    r, g, b });
+			verts.push_back({ right, h11, bottom, r, g, b });
+			verts.push_back({ left,  h01, bottom, r, g, b });
 		}
 	}
+
 	vertexCount = verts.size();
 	if (vao) glDeleteVertexArrays(1, &vao);
 	if (vbo) glDeleteBuffers(1, &vbo);
@@ -216,7 +214,7 @@ void MapRenderer::renderMap() {
 	guitiles = tiles;
 
 	if (hoverTileX >= 0 && hoverTileX < 64 && hoverTileY >= 0 && hoverTileY < 64) {
-		float height = tiles[0][hoverTileX][hoverTileY].height * 0.200f;
+		float height = tiles[0][hoverTileX][hoverTileY].height * 0.3f;
 		float left = hoverTileX * tileSize;
 		float right = left + tileSize;
 		float top = (MAP_HEIGHT - 1 - hoverTileY) * tileSize;
