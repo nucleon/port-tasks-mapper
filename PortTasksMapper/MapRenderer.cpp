@@ -29,6 +29,10 @@ float yaw = -90.0f;
 float pitch = -70.0f;
 float distance = 180.0f;
 
+int guiHoverTileX = -1;
+int guiHoverTileY = -1;
+Tile*** guitiles = nullptr;
+
 float lastX = 400, lastY = 300;
 bool firstMouse = true;
 bool rotating = false;
@@ -42,9 +46,9 @@ void setPitch(float p) { pitch = std::clamp(p, -90.0f, 90.0f); }
 void setDistance(float d) { distance = std::clamp(d, 100.0f, 300.0f); }
 
 void MapRenderer::resetCamera() {
-	setYaw(-90.0f);
-	setPitch(-70.0f);
-	setDistance(180.0f);
+	//setYaw(-90.0f);
+	//setPitch(-70.0f);
+	//setDistance(180.0f);
 }
 
 void MapRenderer::createShader() {
@@ -97,7 +101,7 @@ void MapRenderer::uploadTileMesh(Tile*** tiles) {
 			float height = tile.height * heightScale;
 			float left = x * tileSize;
 			float right = left + tileSize;
-			float top = y * tileSize;
+			float top = (MAP_HEIGHT - 1 - y) * tileSize;
 			float bottom = top + tileSize;
 			glm::vec3 color;
 			if (tile.overlayId != 0) {
@@ -143,7 +147,7 @@ void MapRenderer::uploadTileMesh(Tile*** tiles) {
 			}
 		}
 	}
-
+	vertexCount = verts.size();
 	if (vao) glDeleteVertexArrays(1, &vao);
 	if (vbo) glDeleteBuffers(1, &vbo);
 
@@ -172,8 +176,8 @@ void MapRenderer::renderMap() {
 
 	glm::mat4 projection = glm::perspective(glm::radians(50.0f), aspect, 0.1f, 500.0f);
 
-	setYaw(90.f);
-	setPitch(45.0f);
+	//setYaw(90.f);
+	//setPitch(45.0f);
 
 	float yawRad = glm::radians(yaw);
 	float pitchRad = glm::radians(pitch);
@@ -191,12 +195,7 @@ void MapRenderer::renderMap() {
 	glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(vp));
 
 	glBindVertexArray(vao);
-
-	for (int y = 0; y < 64; ++y) {
-		for (int x = 0; x < 64; ++x) {
-			glDrawArrays(GL_TRIANGLES, (x + y * 64) * 6, 6);
-		}
-	}
+	glDrawArrays(GL_TRIANGLES, 0, vertexCount);
 
 	glm::vec3 ray = getRayFromMouse(window, view, projection);
 	glm::vec3 hit = intersectRayWithGround(cameraPos, ray);
@@ -206,15 +205,21 @@ void MapRenderer::renderMap() {
 	int tileY = static_cast<int>(std::floor(hit.z / tileSize));
 	tileX = std::clamp(tileX, 0, 63);
 	tileY = std::clamp(tileY, 0, 63);
+	tileY = (MAP_HEIGHT - 1) - tileY;
+
 
 	int hoverTileX = tileX;
 	int hoverTileY = tileY;
+
+	guiHoverTileX = hoverTileX;
+	guiHoverTileY = hoverTileY;
+	guitiles = tiles;
 
 	if (hoverTileX >= 0 && hoverTileX < 64 && hoverTileY >= 0 && hoverTileY < 64) {
 		float height = tiles[0][hoverTileX][hoverTileY].height * 0.200f;
 		float left = hoverTileX * tileSize;
 		float right = left + tileSize;
-		float top = hoverTileY * tileSize;
+		float top = (MAP_HEIGHT - 1 - hoverTileY) * tileSize;
 		float bottom = top + tileSize;
 		glm::vec3 highlightColor = { 1.0f, 1.0f, 0.0f };
 		Vertex highlightVerts[6] = {

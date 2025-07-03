@@ -25,6 +25,9 @@ extern float pitch;
 extern float distance;
 extern glm::vec3 target;
 extern glm::vec3 cameraPos;
+extern int guiHoverTileX;
+extern int guiHoverTileY;
+extern Tile*** guitiles;
 
 static bool showWireframe = true;
 
@@ -115,13 +118,17 @@ void hideConsole() {
 #endif
 }
 
-void drawUI() {
-	ImGui::SetNextWindowSize(ImVec2(280, 190));
-	ImGui::Begin("Port Tasks", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+void drawUI()
+{
+	ImGui::SetNextWindowBgAlpha(0.5f);
+	ImGui::SetNextWindowSize(ImVec2(280, 160));
+	ImGui::Begin("Port Tasks", nullptr,
+		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
 
 	ImGui::Text("Tool Options");
-
-	if (ImGui::Button("Reload Map")) {
+	if (ImGui::Button("Reload Map"))
+	{
 		std::cout << "Button was clicked!\n";
 	}
 	if (ImGui::Checkbox("Wireframe", &showWireframe))
@@ -141,4 +148,38 @@ void drawUI() {
 		distance = roundf(distance);
 
 	ImGui::End();
+
+	ImVec2 window_size(220, 110);
+	ImVec2 window_pos(800 - window_size.x - 10, 10);
+
+	ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
+
+	ImGui::SetNextWindowBgAlpha(0.5f);
+
+	ImGui::Begin("Tile Info", nullptr,
+		ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
+
+	if (guiHoverTileX >= 0 && guiHoverTileX < 64 && guiHoverTileY >= 0 && guiHoverTileY < 64 && guitiles)
+	{
+		const Tile& tile = guitiles[0][guiHoverTileX][guiHoverTileY];
+		const int regionX = 50;
+		const int regionY = 50;
+		const int worldX = regionX * 64 + guiHoverTileX;
+		const int worldY = regionY * 64 + guiHoverTileY;
+
+		ImGui::Text("Tile Info:");
+		ImGui::Text("Map X: %d   Y: %d", guiHoverTileX, guiHoverTileY);
+		ImGui::Text("World X: %d   Y: %d", worldX, worldY);
+		ImGui::Text("Overlay ID: %d", tile.overlayId);
+		ImGui::Text("Underlay ID: %d", tile.underlayId);
+	}
+	else
+	{
+		ImGui::Text("No tile hovered.");
+	}
+
+	ImGui::End();
+
 }

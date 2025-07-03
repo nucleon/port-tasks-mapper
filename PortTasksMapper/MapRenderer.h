@@ -28,6 +28,7 @@ public:
 	static void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 	static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 	void setTiles(Tile*** newTiles);
+	static inline int vertexCount;
 
 private:
 	std::string file;
