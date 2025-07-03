@@ -19,9 +19,6 @@
 
 void hideConsole();
 void drawUI();
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
-void mouse_callback(GLFWwindow* window, double xpos, double ypos);
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 
 extern float yaw;
 extern float pitch;
@@ -32,6 +29,8 @@ extern glm::vec3 cameraPos;
 static bool showWireframe = true;
 
 int main() {
+	
+
 	if (!glfwInit()) {
 		std::cerr << "Failed to init GLFW\n";
 		return -1;
@@ -48,6 +47,7 @@ int main() {
 		glfwTerminate();
 		return -1;
 	}
+	MapRenderer renderer("data/m50_50.dat", window);
 
 	glfwMakeContextCurrent(window);
 
@@ -56,17 +56,18 @@ int main() {
 		return -1;
 	}
 
-	glfwSetCursorPosCallback(window, mouse_callback);
-	glfwSetMouseButtonCallback(window, mouse_button_callback);
-	glfwSetScrollCallback(window, scroll_callback);
+	glfwSetCursorPosCallback(window, MapRenderer::mouse_callback);
+	glfwSetMouseButtonCallback(window, MapRenderer::mouse_button_callback);
+	glfwSetScrollCallback(window, MapRenderer::scroll_callback);
 
 
-	Tile tiles[TILE_Z][TILE_X][TILE_Y] = {};
 	size_t bufSize;
 	unsigned char* buf = loadFileBytes("m50_50.dat", &bufSize);
 	if (buf)
 	{
-		loadTerrain(tiles, buf, bufSize);
+		Tile*** tiles = MapLoader::loadTerrain(buf, bufSize);
+		renderer.uploadTileMesh(tiles);
+		renderer.setTiles(tiles);
 		free(buf);
 	}
 	else
@@ -74,7 +75,6 @@ int main() {
 		std::cerr << "Failed to load map data\n";
 	}
 
-	InitRS2Map(tiles);
 
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -87,7 +87,7 @@ int main() {
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		
-		renderMap();
+		renderer.renderMap();
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
@@ -104,7 +104,7 @@ int main() {
 
 	glfwDestroyWindow(window);
 	glfwTerminate();
-	cleanupMap();
+	renderer.cleanupMap();
 	return 0;
 }
 

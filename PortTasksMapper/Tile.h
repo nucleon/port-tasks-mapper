@@ -1,10 +1,6 @@
 #ifndef TILE_H
 #define TILE_H
 
-#define TILE_Z 4
-#define TILE_X 64
-#define TILE_Y 64
-
 typedef struct
 {
 	int height;
