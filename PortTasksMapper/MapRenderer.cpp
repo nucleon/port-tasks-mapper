@@ -11,7 +11,8 @@
 #include "Underlay.h"
 #include "MapRenderer.h"
 
-struct Vertex {
+struct Vertex
+{
 	float x, y, z;
 	float r, g, b;
 };
@@ -37,24 +38,38 @@ bool panning = false;
 glm::vec3 target = glm::vec3(31.0f, 0.0f, 31.0f);
 glm::vec3 cameraPos;
 
-void setYaw(float y) { yaw = y; }
-void setPitch(float p) { pitch = std::clamp(p, -90.0f, 90.0f); }
-void setDistance(float d) { distance = std::clamp(d, 100.0f, 300.0f); }
+void setYaw(float y)
+{
+	yaw = y;
+}
 
-void MapRenderer::resetCamera() {
+void setPitch(float p)
+{
+	pitch = std::clamp(p, -90.0f, 90.0f);
+}
+
+void setDistance(float d)
+{
+	distance = std::clamp(d, 100.0f, 300.0f);
+}
+
+void MapRenderer::resetCamera()
+{
 	setYaw(-90.0f);
 	setPitch(-70.0f);
 	setDistance(180.0f);
 }
 
-void MapRenderer::createShader() {
+void MapRenderer::createShader()
+{
 	const char* vertSrc = R"(
         #version 330 core
         layout (location = 0) in vec3 aPos;
         layout (location = 1) in vec3 aColor;
         uniform mat4 uVP;
         out vec3 vColor;
-        void main() {
+        void main()
+        {
             gl_Position = uVP * vec4(aPos, 1.0);
             vColor = aColor;
         }
@@ -64,7 +79,8 @@ void MapRenderer::createShader() {
         #version 330 core
         in vec3 vColor;
         out vec4 FragColor;
-        void main() {
+        void main()
+        {
             FragColor = vec4(vColor, 1.0);
         }
     )";
@@ -86,13 +102,16 @@ void MapRenderer::createShader() {
 	glDeleteShader(frag);
 }
 
-void MapRenderer::uploadTileMesh(Tile*** tiles) {
+void MapRenderer::uploadTileMesh(Tile*** tiles)
+{
 	std::vector<Vertex> verts;
 	float tileSize = 4.0f;
 	float heightScale = 0.200f;
 
-	for (int y = 0; y < 64; ++y) {
-		for (int x = 0; x < 64; ++x) {
+	for (int y = 0; y < 64; ++y)
+	{
+		for (int x = 0; x < 64; ++x)
+		{
 			Tile& tile = tiles[0][x][y];
 			float height = tile.height * heightScale;
 			float left = x * tileSize;
@@ -100,23 +119,31 @@ void MapRenderer::uploadTileMesh(Tile*** tiles) {
 			float top = y * tileSize;
 			float bottom = top + tileSize;
 			glm::vec3 color;
-			if (tile.overlayId != 0) {
+
+			if (tile.overlayId != 0)
+			{
 				color = getOverlayRGB(tile.overlayId);
 			}
-			else {
+			else
+			{
 				color = getUnderlayRGB(tile.underlayId);
 			}
+
 			float r = color.r, g = color.g, b = color.b;
+
 			verts.push_back({ left, height, top, r, g, b });
 			verts.push_back({ right, height, top, r, g, b });
 			verts.push_back({ right, height, bottom, r, g, b });
 			verts.push_back({ left, height, top, r, g, b });
 			verts.push_back({ right, height, bottom, r, g, b });
 			verts.push_back({ left, height, bottom, r, g, b });
-			if (x < 63) {
+
+			if (x < 63)
+			{
 				Tile& nbr = tiles[0][x + 1][y];
 				float nh = nbr.height * heightScale;
-				if (nh != height) {
+				if (nh != height)
+				{
 					float minH = std::min(height, nh);
 					float maxH = std::max(height, nh);
 					verts.push_back({ right, minH, top, r, g, b });
@@ -127,10 +154,13 @@ void MapRenderer::uploadTileMesh(Tile*** tiles) {
 					verts.push_back({ right, minH, bottom, r, g, b });
 				}
 			}
-			if (y < 63) {
+
+			if (y < 63)
+			{
 				Tile& nbr = tiles[0][x][y + 1];
 				float nh = nbr.height * heightScale;
-				if (nh != height) {
+				if (nh != height)
+				{
 					float minH = std::min(height, nh);
 					float maxH = std::max(height, nh);
 					verts.push_back({ left, minH, bottom, r, g, b });
@@ -163,7 +193,8 @@ void MapRenderer::uploadTileMesh(Tile*** tiles) {
 	glEnableVertexAttribArray(1);
 }
 
-void MapRenderer::renderMap() {
+void MapRenderer::renderMap()
+{
 	glUseProgram(shaderProgram);
 
 	int width, height;
@@ -192,8 +223,10 @@ void MapRenderer::renderMap() {
 
 	glBindVertexArray(vao);
 
-	for (int y = 0; y < 64; ++y) {
-		for (int x = 0; x < 64; ++x) {
+	for (int y = 0; y < 64; ++y)
+	{
+		for (int x = 0; x < 64; ++x)
+		{
 			glDrawArrays(GL_TRIANGLES, (x + y * 64) * 6, 6);
 		}
 	}
@@ -210,7 +243,8 @@ void MapRenderer::renderMap() {
 	int hoverTileX = tileX;
 	int hoverTileY = tileY;
 
-	if (hoverTileX >= 0 && hoverTileX < 64 && hoverTileY >= 0 && hoverTileY < 64) {
+	if (hoverTileX >= 0 && hoverTileX < 64 && hoverTileY >= 0 && hoverTileY < 64)
+	{
 		float height = tiles[0][hoverTileX][hoverTileY].height * 0.200f;
 		float left = hoverTileX * tileSize;
 		float right = left + tileSize;
@@ -239,15 +273,19 @@ void MapRenderer::renderMap() {
 		glDeleteBuffers(1, &tempVBO);
 		glDeleteVertexArrays(1, &tempVAO);
 	}
+
 	std::cout << "Tile: " << tileX << ", " << tileY << "\n";
+
 }
 
-glm::vec3 MapRenderer::intersectRayWithGround(glm::vec3 rayOrigin, glm::vec3 rayDir) {
+glm::vec3 MapRenderer::intersectRayWithGround(glm::vec3 rayOrigin, glm::vec3 rayDir)
+{
 	float t = -rayOrigin.y / rayDir.y;
 	return rayOrigin + rayDir * t;
 }
 
-glm::vec3 MapRenderer::getRayFromMouse(GLFWwindow* window, const glm::mat4& view, const glm::mat4& projection) {
+glm::vec3 MapRenderer::getRayFromMouse(GLFWwindow* window, const glm::mat4& view, const glm::mat4& projection)
+{
 	int winWidth, winHeight;
 	glfwGetWindowSize(window, &winWidth, &winHeight);
 	double mouseX, mouseY;
@@ -263,22 +301,28 @@ glm::vec3 MapRenderer::getRayFromMouse(GLFWwindow* window, const glm::mat4& view
 	return glm::normalize(ray_world);
 }
 
-void MapRenderer::cleanupMap() {
+void MapRenderer::cleanupMap()
+{
 	glDeleteProgram(shaderProgram);
 	glDeleteBuffers(1, &vbo);
 	glDeleteVertexArrays(1, &vao);
 }
 
-void MapRenderer::mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+void MapRenderer::mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
 	if (button == GLFW_MOUSE_BUTTON_RIGHT)
 		rotating = (action == GLFW_PRESS);
+
 	if (button == GLFW_MOUSE_BUTTON_MIDDLE)
 		panning = (action == GLFW_PRESS);
+
 	if (action == GLFW_RELEASE)
 		firstMouse = true;
+
 }
 
-void MapRenderer::mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+void MapRenderer::mouse_callback(GLFWwindow* window, double xpos, double ypos)
+{
 	glfwGetCursorPos(window, &xpos, &ypos);
 	int width, height;
 	glfwGetFramebufferSize(window, &width, &height);
@@ -286,36 +330,46 @@ void MapRenderer::mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 	float ndcY = 1.0f - (2.0f * ypos) / height;
 	if (!rotating && !panning)
 		return;
-	if (firstMouse) {
+
+	if (firstMouse)
+	{
 		lastX = xpos;
 		lastY = ypos;
 		firstMouse = false;
 	}
+
 	float xoffset = static_cast<float>(xpos - lastX);
 	float yoffset = static_cast<float>(ypos - lastY);
 	lastX = static_cast<float>(xpos);
 	lastY = static_cast<float>(ypos);
-	if (rotating) {
+
+	if (rotating)
+	{
 		float sensitivity = 0.2f;
 		pitch -= yoffset * sensitivity;
 		setPitch(pitch);
 	}
-	else if (panning) {
+	else if (panning)
+	{
 		float panSpeed = 0.005f * distance;
 		target.x -= xoffset * panSpeed;
 		target.z -= yoffset * panSpeed;
 	}
+
 }
 
-void MapRenderer::scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+void MapRenderer::scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
 	distance -= static_cast<float>(yoffset) * 2.0f;
 	setDistance(distance);
 }
 
 MapRenderer::MapRenderer(const std::string& filename, GLFWwindow* window)
-	: file(filename), window(window) {
+	: file(filename), window(window)
+{
 }
 
-void MapRenderer::setTiles(Tile*** newTiles) {
+void MapRenderer::setTiles(Tile*** newTiles)
+{
 	tiles = newTiles;
 }
