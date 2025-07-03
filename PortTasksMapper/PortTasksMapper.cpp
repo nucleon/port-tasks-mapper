@@ -1,4 +1,5 @@
 #define GLFW_INCLUDE_NONE
+
 #include <iostream>
 #include <windows.h>
 #include "pch.h"
@@ -9,7 +10,7 @@
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <glm/vec3.hpp>        
+#include <glm/vec3.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include "Tile.h"
@@ -18,6 +19,7 @@
 #include "Utils.h"
 
 void hideConsole();
+
 void drawUI();
 
 extern float yaw;
@@ -26,12 +28,17 @@ extern float distance;
 extern glm::vec3 target;
 extern glm::vec3 cameraPos;
 
+extern int guiHoverTileX;
+extern int guiHoverTileY;
+extern Tile*** guitiles;
+
 static bool showWireframe = true;
 
-int main() {
-	
+int main()
+{
 
-	if (!glfwInit()) {
+	if (!glfwInit())
+	{
 		std::cerr << "Failed to init GLFW\n";
 		return -1;
 	}
@@ -42,16 +49,19 @@ int main() {
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
 	GLFWwindow* window = glfwCreateWindow(800, 600, "Port Tasks Mapping Tool - OpenGL 3.3", nullptr, nullptr);
-	if (!window) {
+	if (!window)
+	{
 		std::cerr << "Failed to create window\n";
 		glfwTerminate();
 		return -1;
 	}
+
 	MapRenderer renderer("data/m50_50.dat", window);
 
 	glfwMakeContextCurrent(window);
 
-	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+	{
 		std::cerr << "Failed to init GLAD\n";
 		return -1;
 	}
@@ -59,7 +69,6 @@ int main() {
 	glfwSetCursorPosCallback(window, MapRenderer::mouse_callback);
 	glfwSetMouseButtonCallback(window, MapRenderer::mouse_button_callback);
 	glfwSetScrollCallback(window, MapRenderer::scroll_callback);
-
 
 	size_t bufSize;
 	unsigned char* buf = loadFileBytes("m50_50.dat", &bufSize);
@@ -75,7 +84,6 @@ int main() {
 		std::cerr << "Failed to load map data\n";
 	}
 
-
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
 	ImGui::StyleColorsDark();
@@ -83,10 +91,11 @@ int main() {
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	ImGui_ImplOpenGL3_Init("#version 330");
 
-	while (!glfwWindowShouldClose(window)) {
+	while (!glfwWindowShouldClose(window))
+	{
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
-		
+
 		renderer.renderMap();
 
 		ImGui_ImplOpenGL3_NewFrame();
@@ -108,20 +117,26 @@ int main() {
 	return 0;
 }
 
-void hideConsole() {
+void hideConsole()
+{
 #ifndef _DEBUG
 	HWND console = GetConsoleWindow();
 	ShowWindow(console, SW_HIDE);
 #endif
+
 }
 
-void drawUI() {
-	ImGui::SetNextWindowSize(ImVec2(280, 190));
-	ImGui::Begin("Port Tasks", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+void drawUI()
+{
+	ImGui::SetNextWindowBgAlpha(0.5f);
+	ImGui::SetNextWindowSize(ImVec2(280, 160));
+	ImGui::Begin("Port Tasks", nullptr,
+		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
 
 	ImGui::Text("Tool Options");
-
-	if (ImGui::Button("Reload Map")) {
+	if (ImGui::Button("Reload Map"))
+	{
 		std::cout << "Button was clicked!\n";
 	}
 	if (ImGui::Checkbox("Wireframe", &showWireframe))
@@ -141,4 +156,38 @@ void drawUI() {
 		distance = roundf(distance);
 
 	ImGui::End();
+
+	ImVec2 window_size(220, 110);
+	ImVec2 window_pos(800 - window_size.x - 10, 10);
+
+	ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
+
+	ImGui::SetNextWindowBgAlpha(0.5f);
+
+	ImGui::Begin("Tile Info", nullptr,
+		ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
+
+	if (guiHoverTileX >= 0 && guiHoverTileX < 64 && guiHoverTileY >= 0 && guiHoverTileY < 64 && guitiles)
+	{
+		const Tile& tile = guitiles[0][guiHoverTileX][guiHoverTileY];
+		const int regionX = 50;
+		const int regionY = 50;
+		const int worldX = regionX * 64 + guiHoverTileX;
+		const int worldY = regionY * 64 + guiHoverTileY;
+
+		ImGui::Text("Tile Info:");
+		ImGui::Text("Map X: %d   Y: %d", guiHoverTileX, guiHoverTileY);
+		ImGui::Text("World X: %d   Y: %d", worldX, worldY);
+		ImGui::Text("Overlay ID: %d", tile.overlayId);
+		ImGui::Text("Underlay ID: %d", tile.underlayId);
+	}
+	else
+	{
+		ImGui::Text("No tile hovered.");
+	}
+
+	ImGui::End();
+
 }

@@ -14,7 +14,6 @@
 class MapRenderer {
 public:
 	MapRenderer(const std::string& filename, GLFWwindow* window);
-	void initMap();
 	void renderMap();
 	void cleanupMap();
 	static void uploadTileMesh(Tile*** tiles);
@@ -29,12 +28,17 @@ public:
 	static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 	void setTiles(Tile*** newTiles);
 
-private:
-	std::string file;
-	GLFWwindow* window;
 	inline static int hoverTileX = -1;
 	inline static int hoverTileY = -1;
 	Tile*** tiles = nullptr;
+
+	int getHoverTileX() const { return hoverTileX; }
+	int getHoverTileY() const { return hoverTileY; }
+	Tile*** getTiles() const { return tiles; }
+
+private:
+	std::string file;
+	GLFWwindow* window;
 };
 
 #endif

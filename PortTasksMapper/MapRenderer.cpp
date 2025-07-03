@@ -35,6 +35,10 @@ bool firstMouse = true;
 bool rotating = false;
 bool panning = false;
 
+int guiHoverTileX = -1;
+int guiHoverTileY = -1;
+Tile*** guitiles = nullptr;
+
 glm::vec3 target = glm::vec3(31.0f, 0.0f, 31.0f);
 glm::vec3 cameraPos;
 
@@ -242,6 +246,10 @@ void MapRenderer::renderMap()
 
 	int hoverTileX = tileX;
 	int hoverTileY = tileY;
+
+	guiHoverTileX = hoverTileX;
+	guiHoverTileY = hoverTileY;
+	guitiles = tiles;
 
 	if (hoverTileX >= 0 && hoverTileX < 64 && hoverTileY >= 0 && hoverTileY < 64)
 	{
