@@ -45,10 +45,12 @@ void setYaw(float y) { yaw = y; }
 void setPitch(float p) { pitch = std::clamp(p, -90.0f, 90.0f); }
 void setDistance(float d) { distance = std::clamp(d, 100.0f, 300.0f); }
 
+float cornerHeights[65][65] = {};
+
 void MapRenderer::resetCamera() {
-	//setYaw(-90.0f);
-	//setPitch(-70.0f);
-	//setDistance(180.0f);
+	setYaw(90.f);
+	setPitch(45.0f);
+	setDistance(180.0f);
 }
 
 void MapRenderer::createShader() {
@@ -94,8 +96,6 @@ void MapRenderer::uploadTileMesh(Tile*** tiles) {
 	std::vector<Vertex> verts;
 	float tileSize = 4.0f;
 	float heightScale = 0.300f;
-
-	float cornerHeights[65][65] = {};
 
 	for (int y = 0; y <= 64; ++y) {
 		for (int x = 0; x <= 64; ++x) {
@@ -214,20 +214,30 @@ void MapRenderer::renderMap() {
 	guitiles = tiles;
 
 	if (hoverTileX >= 0 && hoverTileX < 64 && hoverTileY >= 0 && hoverTileY < 64) {
-		float height = tiles[0][hoverTileX][hoverTileY].height * 0.3f;
+		float tileSize = 4.0f;
+		// Use same smoothing as mesh!
+		float h00 = cornerHeights[hoverTileX][hoverTileY];
+		float h10 = cornerHeights[hoverTileX + 1][hoverTileY];
+		float h11 = cornerHeights[hoverTileX + 1][hoverTileY + 1];
+		float h01 = cornerHeights[hoverTileX][hoverTileY + 1];
+
 		float left = hoverTileX * tileSize;
-		float right = left + tileSize;
+		float right = (hoverTileX + 1) * tileSize;
 		float top = (MAP_HEIGHT - 1 - hoverTileY) * tileSize;
-		float bottom = top + tileSize;
+		float bottom = (MAP_HEIGHT - 1 - (hoverTileY + 1)) * tileSize;
+
 		glm::vec3 highlightColor = { 1.0f, 1.0f, 0.0f };
+
 		Vertex highlightVerts[6] = {
-			{ left, height, top, highlightColor.r, highlightColor.g, highlightColor.b },
-			{ right, height, top, highlightColor.r, highlightColor.g, highlightColor.b },
-			{ right, height, bottom, highlightColor.r, highlightColor.g, highlightColor.b },
-			{ left, height, top, highlightColor.r, highlightColor.g, highlightColor.b },
-			{ right, height, bottom, highlightColor.r, highlightColor.g, highlightColor.b },
-			{ left, height, bottom, highlightColor.r, highlightColor.g, highlightColor.b }
+			{ left,  h00, top,    highlightColor.r, highlightColor.g, highlightColor.b },
+			{ right, h10, top,    highlightColor.r, highlightColor.g, highlightColor.b },
+			{ right, h11, bottom, highlightColor.r, highlightColor.g, highlightColor.b },
+
+			{ left,  h00, top,    highlightColor.r, highlightColor.g, highlightColor.b },
+			{ right, h11, bottom, highlightColor.r, highlightColor.g, highlightColor.b },
+			{ left,  h01, bottom, highlightColor.r, highlightColor.g, highlightColor.b }
 		};
+
 		GLuint tempVAO, tempVBO;
 		glGenVertexArrays(1, &tempVAO);
 		glGenBuffers(1, &tempVBO);
@@ -252,7 +262,7 @@ glm::vec3 MapRenderer::intersectRayWithGround(glm::vec3 rayOrigin, glm::vec3 ray
 
 glm::vec3 MapRenderer::getRayFromMouse(GLFWwindow* window, const glm::mat4& view, const glm::mat4& projection) {
 	int winWidth, winHeight;
-	glfwGetWindowSize(window, &winWidth, &winHeight);
+	glfwGetFramebufferSize(window, &winWidth, &winHeight);
 	double mouseX, mouseY;
 	glfwGetCursorPos(window, &mouseX, &mouseY);
 	float x = (2.0f * (float)mouseX) / winWidth - 1.0f;
@@ -271,6 +281,7 @@ void MapRenderer::cleanupMap() {
 	glDeleteBuffers(1, &vbo);
 	glDeleteVertexArrays(1, &vao);
 }
+std::vector<std::string> savedPoints;
 
 void MapRenderer::mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
 	if (button == GLFW_MOUSE_BUTTON_RIGHT)
@@ -279,6 +290,16 @@ void MapRenderer::mouse_button_callback(GLFWwindow* window, int button, int acti
 		panning = (action == GLFW_PRESS);
 	if (action == GLFW_RELEASE)
 		firstMouse = true;
+
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+		int absX = 50 * 64 + guiHoverTileX;
+		int absY = 50 * 64 + guiHoverTileY;
+
+		char buf[64];
+		snprintf(buf, sizeof(buf), "WorldPoint(%d, %d, 0),", absX, absY);
+
+		savedPoints.push_back(std::string(buf));
+	}
 }
 
 void MapRenderer::mouse_callback(GLFWwindow* window, double xpos, double ypos) {
@@ -317,6 +338,7 @@ void MapRenderer::scroll_callback(GLFWwindow* window, double xoffset, double yof
 
 MapRenderer::MapRenderer(const std::string& filename, GLFWwindow* window)
 	: file(filename), window(window) {
+	resetCamera();
 }
 
 void MapRenderer::setTiles(Tile*** newTiles) {

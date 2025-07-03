@@ -28,7 +28,7 @@ extern glm::vec3 cameraPos;
 extern int guiHoverTileX;
 extern int guiHoverTileY;
 extern Tile*** guitiles;
-
+extern std::vector<std::string> savedPoints;
 static bool showWireframe = true;
 
 int main() {
@@ -44,7 +44,7 @@ int main() {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-	GLFWwindow* window = glfwCreateWindow(800, 600, "Port Tasks Mapping Tool - OpenGL 3.3", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(800, 600, "Port Tasks Mapping Tool | c++ gl 330", nullptr, nullptr);
 	if (!window) {
 		std::cerr << "Failed to create window\n";
 		glfwTerminate();
@@ -182,4 +182,39 @@ void drawUI()
 
 	ImGui::End();
 
+	int windowWidth, windowHeight;
+	GLFWwindow* window = glfwGetCurrentContext();
+	glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+
+	ImVec2 bl_window_size(177, 185);
+	ImVec2 bl_window_pos(2, windowHeight - bl_window_size.y - 2);
+
+	ImGui::SetNextWindowPos(bl_window_pos, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(bl_window_size, ImGuiCond_Always);
+	ImGui::SetNextWindowBgAlpha(0.5f);
+
+	ImGui::Begin("Saved Points", nullptr,
+		ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
+
+	static std::vector<char> buffer(1024 * 10, 0); 
+
+	std::string allPoints;
+	for (const auto& p : savedPoints)
+		allPoints += p + "\n";
+
+	size_t len = allPoints.size();
+	if (len >= buffer.size())
+	{
+		buffer.resize(len + 1);
+	}
+
+	memcpy(buffer.data(), allPoints.c_str(), len);
+	buffer[len] = '\0';
+
+	ImVec2 size(160, 160);
+	ImGui::SetNextWindowBgAlpha(0.5f);
+	ImGui::InputTextMultiline("##savedPoints", buffer.data(), buffer.size(), size, ImGuiInputTextFlags_ReadOnly);
+
+	ImGui::End();
 }
