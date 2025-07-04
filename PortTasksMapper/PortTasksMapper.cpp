@@ -2,31 +2,38 @@
 #include <iostream>
 #include <windows.h>
 #include "pch.h"
+
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/vec3.hpp>        
 #include <glm/gtc/type_ptr.hpp>
+
+#include "Tile.h"
+#include "MapLoader.h"
 #include "MapRenderer.h"
+#include "Utils.h"
 
 void hideConsole();
 void drawUI();
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
-void mouse_callback(GLFWwindow* window, double xpos, double ypos);
-void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 
 extern float yaw;
 extern float pitch;
 extern float distance;
 extern glm::vec3 target;
 extern glm::vec3 cameraPos;
-extern glm::ivec2 highlightedTile;
-
+extern int guiHoverTileX;
+extern int guiHoverTileY;
+extern Tile*** guitiles;
+extern std::vector<std::string> savedPoints;
 static bool showWireframe = true;
 
 int main() {
+	
+
 	if (!glfwInit()) {
 		std::cerr << "Failed to init GLFW\n";
 		return -1;
@@ -37,12 +44,13 @@ int main() {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-	GLFWwindow* window = glfwCreateWindow(800, 600, "Port Tasks Mapping Tool - OpenGL 3.3", nullptr, nullptr);
+	GLFWwindow* window = glfwCreateWindow(800, 600, "Port Tasks Mapping Tool | c++ gl 330", nullptr, nullptr);
 	if (!window) {
 		std::cerr << "Failed to create window\n";
 		glfwTerminate();
 		return -1;
 	}
+	MapRenderer renderer("data/m50_50.dat", window);
 
 	glfwMakeContextCurrent(window);
 
@@ -51,11 +59,25 @@ int main() {
 		return -1;
 	}
 
-	glfwSetCursorPosCallback(window, mouse_callback);
-	glfwSetMouseButtonCallback(window, mouse_button_callback);
-	glfwSetScrollCallback(window, scroll_callback);
+	glfwSetCursorPosCallback(window, MapRenderer::mouse_callback);
+	glfwSetMouseButtonCallback(window, MapRenderer::mouse_button_callback);
+	glfwSetScrollCallback(window, MapRenderer::scroll_callback);
 
-	initMap();
+
+	size_t bufSize;
+	unsigned char* buf = loadFileBytes("m50_50.dat", &bufSize);
+	if (buf)
+	{
+		Tile*** tiles = MapLoader::loadTerrain(buf, bufSize);
+		renderer.uploadTileMesh(tiles);
+		renderer.setTiles(tiles);
+		free(buf);
+	}
+	else
+	{
+		std::cerr << "Failed to load map data\n";
+	}
+
 
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -68,8 +90,7 @@ int main() {
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		
-		updateHighlight(window);
-		renderMap();
+		renderer.renderMap();
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
@@ -86,7 +107,7 @@ int main() {
 
 	glfwDestroyWindow(window);
 	glfwTerminate();
-	cleanupMap();
+	renderer.cleanupMap();
 	return 0;
 }
 
@@ -97,13 +118,17 @@ void hideConsole() {
 #endif
 }
 
-void drawUI() {
-	ImGui::SetNextWindowSize(ImVec2(280, 190));
-	ImGui::Begin("Port Tasks", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+void drawUI()
+{
+	ImGui::SetNextWindowBgAlpha(0.5f);
+	ImGui::SetNextWindowSize(ImVec2(280, 160));
+	ImGui::Begin("Port Tasks", nullptr,
+		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
 
 	ImGui::Text("Tool Options");
-
-	if (ImGui::Button("Reload Map")) {
+	if (ImGui::Button("Reload Map"))
+	{
 		std::cout << "Button was clicked!\n";
 	}
 	if (ImGui::Checkbox("Wireframe", &showWireframe))
@@ -122,8 +147,74 @@ void drawUI() {
 	if (ImGui::SliderFloat("Distance", &distance, 60.0f, 300.0f, "%.0f"))
 		distance = roundf(distance);
 
-	ImGui::Text("Tile: %d, %d", highlightedTile.x, highlightedTile.y);
+	ImGui::End();
 
+	ImVec2 window_size(220, 110);
+	ImVec2 window_pos(800 - window_size.x - 10, 10);
+
+	ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
+
+	ImGui::SetNextWindowBgAlpha(0.5f);
+
+	ImGui::Begin("Tile Info", nullptr,
+		ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
+
+	if (guiHoverTileX >= 0 && guiHoverTileX < 64 && guiHoverTileY >= 0 && guiHoverTileY < 64 && guitiles)
+	{
+		const Tile& tile = guitiles[0][guiHoverTileX][guiHoverTileY];
+		const int regionX = 50;
+		const int regionY = 50;
+		const int worldX = regionX * 64 + guiHoverTileX;
+		const int worldY = regionY * 64 + guiHoverTileY;
+
+		ImGui::Text("Tile Info:");
+		ImGui::Text("Map X: %d   Y: %d", guiHoverTileX, guiHoverTileY);
+		ImGui::Text("World X: %d   Y: %d", worldX, worldY);
+		ImGui::Text("Overlay ID: %d", tile.overlayId);
+		ImGui::Text("Underlay ID: %d", tile.underlayId);
+	}
+	else
+	{
+		ImGui::Text("No tile hovered.");
+	}
+
+	ImGui::End();
+
+	int windowWidth, windowHeight;
+	GLFWwindow* window = glfwGetCurrentContext();
+	glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+
+	ImVec2 bl_window_size(177, 185);
+	ImVec2 bl_window_pos(2, windowHeight - bl_window_size.y - 2);
+
+	ImGui::SetNextWindowPos(bl_window_pos, ImGuiCond_Always);
+	ImGui::SetNextWindowSize(bl_window_size, ImGuiCond_Always);
+	ImGui::SetNextWindowBgAlpha(0.5f);
+
+	ImGui::Begin("Saved Points", nullptr,
+		ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar);
+
+	static std::vector<char> buffer(1024 * 10, 0); 
+
+	std::string allPoints;
+	for (const auto& p : savedPoints)
+		allPoints += p + "\n";
+
+	size_t len = allPoints.size();
+	if (len >= buffer.size())
+	{
+		buffer.resize(len + 1);
+	}
+
+	memcpy(buffer.data(), allPoints.c_str(), len);
+	buffer[len] = '\0';
+
+	ImVec2 size(160, 160);
+	ImGui::SetNextWindowBgAlpha(0.5f);
+	ImGui::InputTextMultiline("##savedPoints", buffer.data(), buffer.size(), size, ImGuiInputTextFlags_ReadOnly);
 
 	ImGui::End();
 }
