@@ -2,7 +2,7 @@
 
 <img src="docs/preview.png" alt="Preview" width="600"/>
 
-**PortTasksMapper** is a lightweight C++ tool using OpenGL 3.3 to render Old School RuneScape maps and overlay WorldPoint paths. Built for visualization and exporting path data for use in the Port Tasks RuneLite plugin.
+**PortTasksMapper** is a lightweight C++ tool using OpenGL 3.3 to render Old School RuneScape maps and overlay WorldPoint paths. Built for visualization and exporting path data for use in the [Port Tasks RuneLite Plugin](https://github.com/nucleon/port-tasks).
 
 ## Features
 - OpenGL 3.3
